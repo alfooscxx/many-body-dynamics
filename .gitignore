@@ -95,5 +95,10 @@ tags
 *_LOCAL_*.txt
 *_REMOTE_*.txt
 
+# Clangd
 .clangd/
 .cache
+
+# Build directories
+/build*
+/out/
