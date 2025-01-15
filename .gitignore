@@ -102,3 +102,7 @@ tags
 # Build directories
 /build*
 /out/
+
+# Auto-installed library headers
+include/cln/
+include/ginac/
