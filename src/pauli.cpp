@@ -1,0 +1,132 @@
+#include "pauli.h"
+
+#include <bit>
+#include <climits>
+#include <utility>
+
+#include "hash_seed.h"
+#include "numeric.h"
+#include "operators.h"
+#include "print.h"
+#include "utils.h"
+
+GiNaC::ex make_pauli_string(std::size_t site,
+                            pauli_string::pauli_matrix matrix) {
+  const pauli_string string{site, matrix};
+  if (matrix != pauli_string::pauli_matrix::Y) {
+    return string;
+  }
+  // adjust phase
+  return (-GiNaC::I) * string;
+}
+
+// NOLINTBEGIN
+GINAC_IMPLEMENT_REGISTERED_CLASS_OPT(
+    pauli_string, GiNaC::basic,
+    print_func<GiNaC::print_context>(&pauli_string::do_print));
+// NOLINTEND
+
+pauli_string::pauli_string() {
+  setflag(GiNaC::status_flags::evaluated | GiNaC::status_flags::expanded);
+}
+
+pauli_string::pauli_string(std::size_t site, pauli_string::pauli_matrix matrix)
+    : pauli_string() {
+  const auto matrix_byte = std::to_underlying(matrix);
+  // clang-format off
+  v_ = ((matrix_byte & 2ULL) >> 1ULL) << site;
+  w_ = ( matrix_byte & 1ULL)          << site;
+  // clang-format on
+}
+
+int pauli_string::compare_same_type(const GiNaC::basic& other) const {
+  GINAC_ASSERT(is_a<pauli_string>(other));
+  const auto& second = dynamic_cast<const pauli_string&>(other);
+  if (v_ != second.v_) {
+    return v_ < second.v_ ? -1 : 1;
+  }
+  if (w_ != second.w_) {
+    return w_ < second.w_ ? -1 : 1;
+  }
+  return 0;
+}
+
+bool pauli_string::is_equal_same_type(const GiNaC::basic& other) const {
+  GINAC_ASSERT(is_a<pauli_string>(other));
+  const auto& second = dynamic_cast<const pauli_string&>(other);
+  return std::tie(v_, w_) == std::tie(second.v_, second.w_);
+}
+
+template <typename T>
+int popcount(T value) {
+  if constexpr (std::is_integral_v<T>) {
+    return std::popcount(value);
+  } else {
+    return value.count();
+  }
+}
+
+GiNaC::ex pauli_string::eval_ncmul(const GiNaC::exvector& mul) const {
+  int phase = 1;
+  pauli_string result{};
+  for (const auto& expr : mul) {
+    const auto [current_v, current_w] =
+        GiNaC::ex_to<pauli_string>(expr).representation();
+    if (popcount(result.v_ & current_w) % 2 == 1) {
+      phase = -phase;
+    }
+    result.v_ ^= current_v;
+    result.w_ ^= current_w;
+  }
+  return GiNaC::ex(result) * phase;
+}
+
+GiNaC::return_type_t pauli_string::return_type_tinfo() const {
+  return GiNaC::make_return_type_t<pauli_string>();
+}
+
+unsigned int pauli_string::get_hash_seed() {
+  static const unsigned int hash_seed =
+      GiNaC::make_hash_seed(typeid(pauli_string));
+  return hash_seed;
+}
+
+unsigned int pauli_string::calchash() const {
+  setflag(GiNaC::status_flags::hash_calculated);
+  hashvalue = get_hash_seed();
+  const auto V = static_cast<unsigned>(v_);  // NOLINT
+  const auto W = static_cast<unsigned>(w_);  // NOLINT
+  // an "elegant" integer pair hash function
+  // http://szudzik.com/ElegantPairing.pdf
+  if (V < W) {
+    hashvalue ^= W * W + V;
+    hashvalue = GiNaC::golden_ratio_hash(hashvalue);
+    return hashvalue;
+  }
+  hashvalue ^= V * V + V + W;
+  hashvalue = GiNaC::golden_ratio_hash(hashvalue);
+  return hashvalue;
+}
+
+void pauli_string::do_print(const GiNaC::print_context& context,
+                            unsigned int level) const {
+  (void)level;
+  static constexpr std::array print_matrix = {"", "X", "Z", "Y"};
+  static constexpr std::array print_phase = {"", "I", "-", "-I"};
+  if ((v_ == 0U) && (w_ == 0U)) {
+    context.s << "ONE";
+    return;
+  }
+  const std::size_t bits = sizeof(inner_bitstring) * CHAR_BIT;
+  const auto phase_degree = popcount(v_ & w_) % 4;
+  context.s << print_phase[phase_degree];  // NOLINT
+  for (std::size_t i = 0; i < bits; ++i) {
+    const auto matrix_byte =
+        (((v_ & (1ULL << i)) >> i) << 1ULL) | ((w_ & (1ULL << i)) >> i);
+    if (matrix_byte != 0) {
+      // NOLINTBEGIN
+      context.s << "[" << print_matrix[matrix_byte] << "_" << i << "]";
+      // NOLINTEND
+    }
+  }
+}
