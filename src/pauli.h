@@ -28,6 +28,9 @@ class pauli_string : public GiNaC::basic {
   // phase-wise
   explicit pauli_string(std::size_t site, pauli_matrix matrix);
 
+  // checks if two pauli strings commute with each other
+  bool does_commute_with(const pauli_string& other) const;
+
  protected:
   bool is_equal_same_type(const GiNaC::basic& other) const override;
   GiNaC::ex eval_ncmul(const GiNaC::exvector& mul) const override;

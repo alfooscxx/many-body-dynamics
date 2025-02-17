@@ -58,12 +58,16 @@ bool pauli_string::is_equal_same_type(const GiNaC::basic& other) const {
 }
 
 template <typename T>
-int popcount(T value) {
+unsigned int popcount(T value) {
   if constexpr (std::is_integral_v<T>) {
     return std::popcount(value);
   } else {
     return value.count();
   }
+}
+
+bool pauli_string::does_commute_with(const pauli_string& other) const {
+  return (popcount(v_ & other.w_) ^ popcount(w_ & other.v_)) % 2 == 0;
 }
 
 GiNaC::ex pauli_string::eval_ncmul(const GiNaC::exvector& mul) const {
