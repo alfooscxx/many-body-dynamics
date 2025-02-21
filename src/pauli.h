@@ -6,6 +6,8 @@
 #include "print.h"
 #include "registrar.h"
 
+struct scaled_pauli_string;
+
 /**
  * @brief
  * Pauli string is a multi-qubit operator
@@ -17,7 +19,8 @@ class pauli_string : public GiNaC::basic {
 
  public:
   enum class pauli_matrix : uint64_t { ONE = 0, X, Z, Y };
-  friend GiNaC::ex make_pauli_string(std::size_t site, pauli_matrix matrix);
+  friend scaled_pauli_string make_pauli_string(std::size_t site,
+                                               pauli_matrix matrix);
 
   // provides default ctor, duplicate(), accept(visitor&)
   // and compare_same_type(const basic&)
@@ -28,6 +31,7 @@ class pauli_string : public GiNaC::basic {
   // phase-wise
   explicit pauli_string(std::size_t site, pauli_matrix matrix);
 
+ public:
   // checks if two pauli strings commute with each other
   bool does_commute_with(const pauli_string& other) const;
 
@@ -51,3 +55,10 @@ class pauli_string : public GiNaC::basic {
   inner_bitstring v_{};
   inner_bitstring w_{};
 };
+
+struct scaled_pauli_string {
+  pauli_string P;
+  GiNaC::ex coef;
+};
+
+using pauli_string_combination = std::vector<scaled_pauli_string>;

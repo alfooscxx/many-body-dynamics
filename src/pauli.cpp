@@ -10,14 +10,14 @@
 #include "print.h"
 #include "utils.h"
 
-GiNaC::ex make_pauli_string(std::size_t site,
-                            pauli_string::pauli_matrix matrix) {
+scaled_pauli_string make_pauli_string(std::size_t site,
+                                      pauli_string::pauli_matrix matrix) {
   const pauli_string string{site, matrix};
   if (matrix != pauli_string::pauli_matrix::Y) {
-    return string;
+    return {.P = string, .coef = GiNaC::_ex1};
   }
   // adjust phase
-  return (-GiNaC::I) * string;
+  return {.P = string, .coef = -GiNaC::I};
 }
 
 // NOLINTBEGIN
