@@ -35,6 +35,8 @@ class pauli_string : public GiNaC::basic {
   // checks if two pauli strings commute with each other
   bool does_commute_with(const pauli_string& other) const;
 
+  GiNaC::ex phase_adjustment() const;
+
  protected:
   bool is_equal_same_type(const GiNaC::basic& other) const override;
   GiNaC::ex eval_ncmul(const GiNaC::exvector& mul) const override;

@@ -5,9 +5,9 @@
 #include <utility>
 
 #include "hash_seed.h"
+#include "ncmul.h"
 #include "numeric.h"
 #include "operators.h"
-#include "print.h"
 #include "utils.h"
 
 scaled_pauli_string make_pauli_string(std::size_t site,
@@ -70,19 +70,43 @@ bool pauli_string::does_commute_with(const pauli_string& other) const {
   return (popcount(v_ & other.w_) ^ popcount(w_ & other.v_)) % 2 == 0;
 }
 
+GiNaC::ex pauli_string::phase_adjustment() const {
+  static const std::array<GiNaC::ex, 4> phase = {GiNaC::_ex1, GiNaC::I,
+                                                 -GiNaC::_ex1, -GiNaC::I};
+  return phase[popcount(v_ & w_) % 4];  // NOLINT
+}
+
 GiNaC::ex pauli_string::eval_ncmul(const GiNaC::exvector& mul) const {
+  GiNaC::exvector result;
   int phase = 1;
-  pauli_string result{};
+  pauli_string current{};
   for (const auto& expr : mul) {
-    const auto [current_v, current_w] =
+    if (!is_a<pauli_string>(expr)) {
+      if ((current.v_ != 0U) || (current.w_ != 0U)) {
+        result.emplace_back(current);
+        current = pauli_string{};
+      }
+      result.push_back(expr);
+      continue;
+    }
+    const auto [update_v, update_w] =
         GiNaC::ex_to<pauli_string>(expr).representation();
-    if (popcount(result.v_ & current_w) % 2 == 1) {
+    if (popcount(current.v_ & update_w) % 2 == 1) {
       phase = -phase;
     }
-    result.v_ ^= current_v;
-    result.w_ ^= current_w;
+    current.v_ ^= update_v;
+    current.w_ ^= update_w;
   }
-  return GiNaC::ex(result) * phase;
+  if ((current.v_ != 0U) || (current.w_ != 0U)) {
+    result.emplace_back(current);
+  }
+  if (result.empty()) {
+    return phase * pauli_string{};
+  }
+  if (result.size() < mul.size()) {
+    return phase * GiNaC::reeval_ncmul(result);
+  }
+  return phase * GiNaC::hold_ncmul(result);
 }
 
 GiNaC::return_type_t pauli_string::return_type_tinfo() const {
