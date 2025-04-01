@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <limits>
 #include <span>
 
@@ -14,7 +15,7 @@ class hamiltonian {
     void do_coloring();
 
     void emplace(pauli_string string, const GiNaC::ex& coef) {
-      base_strings_.emplace(string, coef);
+      base_strings_.try_emplace(string, coef);
     }
 
     [[nodiscard]] pauli_string_combination filter(std::size_t color,
@@ -30,11 +31,12 @@ class hamiltonian {
     std::size_t period_length_{1};
   };
 
-  explicit hamiltonian(pauli_string_combination&& cycle_term) {
-    group_by_commutativity(std::move(cycle_term));
+  explicit hamiltonian(const pauli_string_combination& cycle_term) {
+    group_by_commutativity(cycle_term);
     for (auto& group : base_strings_groups_) {
       group.do_coloring();
     }
+    std::ranges::reverse(base_strings_groups_);
   }
 
   [[nodiscard]] std::span<group, std::dynamic_extent> groups_view() {
@@ -42,7 +44,7 @@ class hamiltonian {
   }
 
  private:
-  void group_by_commutativity(pauli_string_combination&&);
+  void group_by_commutativity(const pauli_string_combination&);
 
   std::vector<group> base_strings_groups_;
 };

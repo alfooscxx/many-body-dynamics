@@ -1,7 +1,8 @@
 {
-    "sonarlint.pathToCompileCommands": "${workspaceFolder}/out/build/unixlike-clang-debug/compile_commands.json",
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/out/build/unixlike-gcc-release/compile_commands.json",
     "cSpell.words": [
         "crational",
+        "cxxopts",
         "exmap",
         "expairseq",
         "exprseq",

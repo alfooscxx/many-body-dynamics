@@ -1,94 +1,67 @@
 #include "calculator.h"
 
-#include "ex.h"
-#include "ginac.h"
 #include "hamiltonian.h"
-#include "inifcns.h"
-#include "operators.h"
 #include "pauli.h"
-#include "relational.h"
-#include "symbol.h"
-#include "utils.h"
-#include "wildcard.h"
 
 using namespace GiNaC;
 
-ex simplify(const ex& expr, const exmap& rules) {
-  if (is_a<mul>(expr)) {
-    ex next = expr;
-    ex prev = next;
-    next = next.subs(rules, subs_options::subs_algebraic).expand();
-    while (next != prev) {
-      prev = next;
-      next = next.subs(rules, subs_options::subs_algebraic).expand();
-    }
-    return next;
-  }
-  if (is_a<add>(expr)) {
-    exvector collected;
-    for (size_t i = 0; i < expr.nops(); ++i) {
-      collected.push_back(simplify(expr.op(i), rules));
-    }
-    return add(collected);
-  }
-  return expr;
+evolution_calculator::evolution_calculator(
+    const scaled_pauli_string& observable, hamiltonian&& hamiltonian)
+    : hamiltonian_(std::move(hamiltonian)) {
+  state_.emplace_back(observable.P, observable.coef);
 }
 
-// NOLINTBEGIN
-const GiNaC::exmap evolution_calculator::simplify_exponents{
-    {exp(wild(0)) * exp(wild(1)), exp(wild(0) + wild(1))}};
-// NOLINTEND
-
-evolution_calculator::evolution_calculator(GiNaC::ex observable,
-                                           hamiltonian&& hamiltonian)
-    : state_(std::move(observable)), hamiltonian_(std::move(hamiltonian)) {}
-
-void evolution_calculator::advance(size_t count) {
-  for (size_t iter = 0; iter < count; ++iter) {
+void evolution_calculator::advance(std::size_t count) {
+  static const auto arg_coef = 2 * tau_;
+  for (std::size_t iter = 0; iter < count; ++iter) {
     ++n_;
-    // GiNaC::possymbol tau_n("tau_" + std::to_string(n_));
     for (const auto& group : hamiltonian_.groups_view()) {
       for (std::size_t color = 0; color < group.color_number(); ++color) {
-        find_all_pauli_strings visitor;
-        state_.traverse_postorder(visitor);
-        const auto strings_in_A = visitor.get_result();
         pauli_string::qubit_mask_t mask{};
-        for (const auto& string : strings_in_A) {
-          mask |= GiNaC::ex_to<pauli_string>(string).sites();
+        for (const auto& string : std::views::keys(state_)) {
+          mask |= string.sites();
         }
         const auto sites = mask_to_vector(mask);
         pauli_string_combination conflicts;
         for (int site : sites) {
           for (const auto& [string, coef] : group.filter(color, site)) {
-            bool non_commute = false;
-            for (const auto& omega_string : strings_in_A) {
-              if (!string.does_commute_with(
-                      GiNaC::ex_to<pauli_string>(omega_string))) {
-                non_commute = true;
-                break;
-              }
-            }
-            if (non_commute) {
-              conflicts.emplace(string, coef);
-            }
+            conflicts.try_emplace(string, coef);
           }
         }
-        for (const auto& [string, coef] : conflicts) {
-          auto step = time_evolution({.P = string, .coef = coef}, tau_);
-          state_ = step * state_ * step.conjugate();
-          state_ = simplify(state_.expand(), simplify_exponents);
+        for (const auto& [P, P_coef] : conflicts) {
+          for (const auto& [A, A_coef] : state_) {
+            if (P.does_commute_with(A)) {
+              new_state_.emplace_back(A, A_coef);
+              continue;
+            }
+            // cos(cP) = cos(c)
+            // sin(cP) = sin(c) * P
+            const auto P_phase_adjustment = P.phase_adjustment();
+            const auto arg = arg_coef * P_phase_adjustment * P_coef;
+            const auto [PA, PA_phase_adjustment] = P * A;
+            new_state_.emplace_back(A, GiNaC::cos(arg) * A_coef);
+            new_state_.emplace_back(
+                PA, PA_phase_adjustment * P_phase_adjustment.conjugate() *
+                        GiNaC::I * GiNaC::sin(arg) * A_coef);
+          }
+          std::ranges::sort(new_state_, {},
+                            &decltype(new_state_)::value_type::first);
+          for (std::size_t i = new_state_.size() - 1; i > 0; --i) {
+            if (new_state_[i].first == new_state_[i - 1].first) {
+              new_state_[i - 1].second += new_state_[i].second;
+            }
+          }
+          const auto junk = std::ranges::unique(
+              new_state_, {}, &decltype(new_state_)::value_type::first);
+          new_state_.erase(junk.begin(), junk.end());
+          const auto removed = std::ranges::remove_if(
+              new_state_, [](const auto& coef) { return coef.is_zero(); },
+              &decltype(new_state_)::value_type::second);
+          new_state_.erase(removed.begin(), removed.end());
+          state_.swap(new_state_);
+          new_state_.clear();
         }
       }
     }
   }
-}
-
-GiNaC::ex evolution_calculator::time_evolution(scaled_pauli_string term,
-                                               const GiNaC::ex& tau) {
-  const auto [P, coef] = std::move(term);
-  const auto phase_adjustment = P.phase_adjustment();
-  const auto arg = GiNaC::I * phase_adjustment * coef * tau;
-  return (-phase_adjustment) *
-         ((GiNaC::exp(arg) + GiNaC::exp(-arg)) / numeric(2) * pauli_string{} +
-          (GiNaC::exp(arg) - GiNaC::exp(-arg)) / numeric(2) * P);
 }

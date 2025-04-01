@@ -1,25 +1,31 @@
 #pragma once
 
+#include <ginac/symbol.h>
+
+#include <ranges>
+
 #include "hamiltonian.h"
 #include "pauli.h"
-#include "symbol.h"
 
 class evolution_calculator {
  public:
-  evolution_calculator(GiNaC::ex observable, hamiltonian&& hamiltonian);
+  using state = std::vector<std::pair<pauli_string, GiNaC::ex>>;
 
-  void advance(size_t count = 1);
+  evolution_calculator(const scaled_pauli_string& observable,
+                       hamiltonian&& hamiltonian);
 
-  GiNaC::ex show() { return state_; }
+  void advance(std::size_t count = 1);
+
+  auto show() { return std::views::all(state_); }
+
+  auto show_strings() { return std::views::keys(state_); }
+
+  GiNaC::possymbol& get_tau() { return tau_; }
 
  private:
-  static GiNaC::ex time_evolution(scaled_pauli_string term,
-                                  const GiNaC::ex& tau);
-
-  static const GiNaC::exmap simplify_exponents;
-
+  GiNaC::possymbol tau_;
   hamiltonian hamiltonian_;
-  GiNaC::ex state_;
-  GiNaC::possymbol tau_{"tau"};
+  state state_;
+  state new_state_;
   size_t n_{};
 };

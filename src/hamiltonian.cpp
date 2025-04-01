@@ -1,9 +1,7 @@
 #include "hamiltonian.h"
 
-#include <algorithm>
 #include <numeric>
-
-#include "pauli.h"
+#include <ranges>
 
 void hamiltonian::group::do_coloring() {
   pauli_string::qubit_mask_t mask{};
@@ -27,14 +25,14 @@ void hamiltonian::group::do_coloring() {
 }
 
 [[nodiscard]] pauli_string_combination hamiltonian::group::filter(
-    std::size_t color, int site) const {  // NOLINT
+    std::size_t color, int site) const {
   pauli_string_combination result;
   for (const auto& [string, coef] : base_strings_) {
     for (int string_site : mask_to_vector(string.sites())) {
       int shift = site - string_site;
       std::size_t shift_color = color_rule(shift);
       if (shift_color == color) {
-        result.emplace(string.translate(shift), coef);
+        result.try_emplace(string.translate(shift), coef);
       }
     }
   }
@@ -46,10 +44,10 @@ void hamiltonian::group::do_coloring() {
     return (shift / block_size_) % period_length_;
   }
   shift = -shift - 1;
-  return period_length_ - 1 - shift / block_size_;
+  return period_length_ - 1 - (shift / block_size_);
 }
 
-void hamiltonian::group_by_commutativity(pauli_string_combination&& sum) {
+void hamiltonian::group_by_commutativity(const pauli_string_combination& sum) {
   const size_t graph_size = sum.size();
   std::vector<std::vector<int>> adjacency_matrix(graph_size,
                                                  std::vector<int>(graph_size));
@@ -97,7 +95,7 @@ void hamiltonian::group_by_commutativity(pauli_string_combination&& sum) {
   {
     auto iit = sum.begin();
     for (size_t i = 0; i < graph_size; ++i, ++iit) {
-      base_strings_groups_[groups[order[i]]].emplace(iit->first, iit->second);
+      base_strings_groups_[groups[i]].emplace(iit->first, iit->second);
     }
   }
 }

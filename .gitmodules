@@ -1,6 +1,0 @@
-[submodule "libs/cln"]
-	path = libs/cln
-	url = git://www.ginac.de/cln.git
-[submodule "libs/ginac"]
-	path = libs/ginac
-	url = git://www.ginac.de/ginac.git
