@@ -10,14 +10,19 @@
 #include "operators.h"
 #include "utils.h"
 
-scaled_pauli_string make_pauli_string(std::size_t site,
-                                      pauli_string::pauli_matrix matrix) {
-  const pauli_string string{site, matrix};
-  if (matrix != pauli_string::pauli_matrix::Y) {
-    return {.P = string, .coef = GiNaC::_ex1};
+scaled_pauli_string make_pauli_string(
+    std::initializer_list<std::pair<int, pauli_string::pauli_matrix>> init) {
+  pauli_string string;
+  GiNaC::ex coef{1};
+  for (auto [site, matrix] : init) {
+    if (matrix == pauli_string::pauli_matrix::Y) {
+      coef *= -GiNaC::I;
+    }
+    pauli_string temp{static_cast<size_t>(site), matrix};
+    string.v_ ^= temp.v_;
+    string.w_ ^= temp.w_;
   }
-  // adjust phase
-  return {.P = string, .coef = -GiNaC::I};
+  return {.P = string, .coef = coef};
 }
 
 // NOLINTBEGIN
@@ -66,8 +71,32 @@ unsigned int popcount(T value) {
   }
 }
 
+bool pauli_string::is_zero() const { return (v_ | w_) == 0; }
+
 bool pauli_string::does_commute_with(const pauli_string& other) const {
   return (popcount(v_ & other.w_) ^ popcount(w_ & other.v_)) % 2 == 0;
+}
+
+pauli_string pauli_string::translate(int shift) const {
+  pauli_string result;
+  if (shift >= 0) {
+    result.v_ = v_ << static_cast<unsigned>(shift);
+    result.w_ = w_ << static_cast<unsigned>(shift);
+  } else {
+    result.v_ = v_ >> static_cast<unsigned>(-shift);
+    result.w_ = w_ >> static_cast<unsigned>(-shift);
+  }
+  return result;
+}
+
+std::vector<int> mask_to_vector(pauli_string::qubit_mask_t sites) {
+  const std::size_t bits = sizeof(pauli_string::qubit_mask_t) * CHAR_BIT;
+  std::vector<int> result;
+  while (sites != 0) {
+    result.push_back(std::countr_zero(sites));
+    sites &= (sites - 1);
+  }
+  return result;
 }
 
 GiNaC::ex pauli_string::phase_adjustment() const {
@@ -145,7 +174,7 @@ void pauli_string::do_print(const GiNaC::print_context& context,
     context.s << "ONE";
     return;
   }
-  const std::size_t bits = sizeof(inner_bitstring) * CHAR_BIT;
+  const std::size_t bits = sizeof(qubit_mask_t) * CHAR_BIT;
   const auto phase_degree = popcount(v_ & w_) % 4;
   context.s << print_phase[phase_degree];  // NOLINT
   for (std::size_t i = 0; i < bits; ++i) {

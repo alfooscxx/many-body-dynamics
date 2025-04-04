@@ -6,7 +6,7 @@
 
 class evolution_calculator {
  public:
-  evolution_calculator(GiNaC::ex observable, const hamiltonian& hamiltonian);
+  evolution_calculator(GiNaC::ex observable, hamiltonian&& hamiltonian);
 
   void advance(size_t count = 1);
 
@@ -16,8 +16,10 @@ class evolution_calculator {
   static GiNaC::ex time_evolution(scaled_pauli_string term,
                                   const GiNaC::ex& tau);
 
+  static const GiNaC::exmap simplify_exponents;
+
+  hamiltonian hamiltonian_;
   GiNaC::ex state_;
-  GiNaC::ex generic_evolution_operator_;
-  GiNaC::possymbol tau;
+  GiNaC::possymbol tau_{"tau"};
   size_t n_{};
 };

@@ -1,8 +1,11 @@
 #pragma once
 
+#include <initializer_list>
+
 #include "basic.h"
 #include "ex.h"
 #include "flags.h"
+#include "lst.h"
 #include "print.h"
 #include "registrar.h"
 
@@ -15,12 +18,14 @@ struct scaled_pauli_string;
  * sites
  */
 class pauli_string : public GiNaC::basic {
-  using inner_bitstring = unsigned long;
-
  public:
+  using qubit_mask_t = unsigned long;
   enum class pauli_matrix : uint64_t { ONE = 0, X, Z, Y };
-  friend scaled_pauli_string make_pauli_string(std::size_t site,
-                                               pauli_matrix matrix);
+  friend scaled_pauli_string make_pauli_string(
+      std::initializer_list<std::pair<int, pauli_matrix>>);
+  friend bool operator<(const pauli_string& lhs, const pauli_string& rhs) {
+    return std::tie(lhs.v_, lhs.w_) < std::tie(rhs.v_, rhs.w_);
+  }
 
   // provides default ctor, duplicate(), accept(visitor&)
   // and compare_same_type(const basic&)
@@ -32,8 +37,14 @@ class pauli_string : public GiNaC::basic {
   explicit pauli_string(std::size_t site, pauli_matrix matrix);
 
  public:
+  bool is_zero() const;
+
   // checks if two pauli strings commute with each other
   bool does_commute_with(const pauli_string& other) const;
+
+  pauli_string translate(int shift) const;
+
+  qubit_mask_t sites() const { return v_ | w_; };
 
   GiNaC::ex phase_adjustment() const;
 
@@ -50,17 +61,32 @@ class pauli_string : public GiNaC::basic {
  private:
   static unsigned int get_hash_seed();
 
-  std::pair<inner_bitstring, inner_bitstring> representation() const {
+  std::pair<qubit_mask_t, qubit_mask_t> representation() const {
     return {v_, w_};
   }
 
-  inner_bitstring v_{};
-  inner_bitstring w_{};
+  qubit_mask_t v_{};
+  qubit_mask_t w_{};
 };
+
+std::vector<int> mask_to_vector(pauli_string::qubit_mask_t);
 
 struct scaled_pauli_string {
   pauli_string P;
   GiNaC::ex coef;
 };
 
-using pauli_string_combination = std::vector<scaled_pauli_string>;
+using pauli_string_combination = std::map<pauli_string, GiNaC::ex>;
+
+class find_all_pauli_strings : public GiNaC::visitor,
+                               public pauli_string::visitor {
+  GiNaC::lst list_;
+  void visit(const pauli_string& string) override { list_.append(string); }
+
+ public:
+  const GiNaC::lst& get_result() {
+    list_.sort();
+    list_.unique();
+    return list_;
+  }
+};
