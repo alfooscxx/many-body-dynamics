@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Set the project
 project(
   many-body-dynamics
-  VERSION 0.0.0
+  VERSION 1.0.0
   DESCRIPTION "Symbolic Calculations for Quantum Many-body Dynamics"
   LANGUAGES CXX)
 
