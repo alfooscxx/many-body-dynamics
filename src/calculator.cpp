@@ -3,8 +3,6 @@
 #include "hamiltonian.h"
 #include "pauli.h"
 
-using namespace GiNaC;
-
 evolution_calculator::evolution_calculator(
     const scaled_pauli_string& observable, hamiltonian&& hamiltonian)
     : hamiltonian_(std::move(hamiltonian)) {
@@ -39,10 +37,11 @@ void evolution_calculator::advance(std::size_t count) {
             const auto P_phase_adjustment = P.phase_adjustment();
             const auto arg = arg_coef * P_phase_adjustment * P_coef;
             const auto [PA, PA_phase_adjustment] = P * A;
-            new_state_.emplace_back(A, GiNaC::cos(arg) * A_coef);
+            new_state_.emplace_back(A, SymEngine::cos(arg) * A_coef);
             new_state_.emplace_back(
-                PA, PA_phase_adjustment * P_phase_adjustment.conjugate() *
-                        GiNaC::I * GiNaC::sin(arg) * A_coef);
+                PA, PA_phase_adjustment *
+                        SymEngine::conjugate(P_phase_adjustment) *
+                        SymEngine::I * SymEngine::sin(arg) * A_coef);
           }
           std::ranges::sort(new_state_, {},
                             &decltype(new_state_)::value_type::first);
@@ -54,10 +53,10 @@ void evolution_calculator::advance(std::size_t count) {
           const auto junk = std::ranges::unique(
               new_state_, {}, &decltype(new_state_)::value_type::first);
           new_state_.erase(junk.begin(), junk.end());
-          const auto removed = std::ranges::remove_if(
-              new_state_, [](const auto& coef) { return coef.is_zero(); },
-              &decltype(new_state_)::value_type::second);
-          new_state_.erase(removed.begin(), removed.end());
+          // const auto removed = std::ranges::remove_if(
+          //     new_state_, [](const auto& coef) { return coef == 0; },
+          //     &decltype(new_state_)::value_type::second);
+          // new_state_.erase(removed.begin(), removed.end());
           state_.swap(new_state_);
           new_state_.clear();
         }

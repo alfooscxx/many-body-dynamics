@@ -14,7 +14,7 @@ class hamiltonian {
 
     void do_coloring();
 
-    void emplace(pauli_string string, const GiNaC::ex& coef) {
+    void emplace(pauli_string string, const SymEngine::Expression& coef) {
       base_strings_.try_emplace(string, coef);
     }
 

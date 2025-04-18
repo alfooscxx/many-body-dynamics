@@ -1,6 +1,4 @@
 // main.cpp — CLI tool for Suzuki–Trotter evolution of a quantum observable
-#include <ginac/ginac.h>
-
 #include <algorithm>
 #include <cxxopts.hpp>
 #include <iostream>
@@ -124,6 +122,7 @@ int main(int argc, char** argv) {
 
     // Observable
     auto observable = pauli_literal(cfg.observable);
+    observable.P = observable.P.translate(32);
 
     // Evolution
     evolution_calculator calc(observable, std::move(H));
@@ -132,20 +131,17 @@ int main(int argc, char** argv) {
     const auto& state = calc.show();
 
     for (double t = 0.0; t <= cfg.t_max + 1e-12; t += cfg.dt) {
-      const GiNaC::numeric tau(t / cfg.trotter_steps);
-      const GiNaC::numeric total = std::accumulate(
-          state.begin(), state.end(), GiNaC::numeric{0},
-          [&](const GiNaC::numeric& acc, const auto& term) {
+      const SymEngine::Expression tau(t / cfg.trotter_steps);
+      const SymEngine::Expression total = std::accumulate(
+          state.begin(), state.end(), SymEngine::Expression{0},
+          [&](const SymEngine::Expression& acc, const auto& term) {
             const auto& [P, coef] = term;
             const auto pol = P.polarize(cfg.pol[0], cfg.pol[1], cfg.pol[2]);
-            return pol == 0
-                       ? acc
-                       : acc + GiNaC::ex_to<GiNaC::numeric>(
-                                   coef.subs(calc.get_tau() == tau).evalf()) *
-                                   pol;
+            return pol == 0 ? acc
+                            : acc + coef.subs({{calc.get_tau(), tau}}) * pol;
           });
-      const double value = total.to_double();
-      std::cout << t << ' ' << value << '\n';
+      std::cout << t << ' ' << static_cast<std::complex<double>>(total).real()
+                << '\n';
     }
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << '\n';

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ginac/ginac.h>
+#include <symengine/expression.h>
 
 struct scaled_pauli_string;
 
@@ -38,10 +38,11 @@ class pauli_string {
 
   [[nodiscard]] qubit_mask_t sites() const { return v_ | w_; };
 
-  [[nodiscard]] GiNaC::numeric phase_adjustment() const;
+  [[nodiscard]] SymEngine::Expression phase_adjustment() const;
 
-  [[nodiscard]] GiNaC::numeric polarize(GiNaC::numeric p_x, GiNaC::numeric p_y,
-                                        GiNaC::numeric p_z) const;
+  [[nodiscard]] SymEngine::Expression polarize(SymEngine::Expression p_x,
+                                               SymEngine::Expression p_y,
+                                               SymEngine::Expression p_z) const;
 
  private:
   [[nodiscard]] std::pair<qubit_mask_t, qubit_mask_t> representation() const {
@@ -55,8 +56,8 @@ class pauli_string {
 std::vector<int> mask_to_vector(pauli_string::qubit_mask_t);
 
 struct scaled_pauli_string {
-  pauli_string P;
-  GiNaC::ex coef;
+  pauli_string P{};
+  SymEngine::Expression coef{1};
 };
 
-using pauli_string_combination = std::map<pauli_string, GiNaC::ex>;
+using pauli_string_combination = std::map<pauli_string, SymEngine::Expression>;

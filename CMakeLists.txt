@@ -11,7 +11,7 @@ project(
   many-body-dynamics
   VERSION 1.0.0
   DESCRIPTION "Symbolic Calculations for Quantum Many-body Dynamics"
-  LANGUAGES CXX)
+  LANGUAGES C CXX)
 
 include(cmake/PreventInSourceBuilds.cmake)
 
@@ -32,8 +32,6 @@ endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(cmake/Dependencies.cmake)
-
-mbd_setup_dependencies()
 
 # Add the source directory
 add_subdirectory(src)

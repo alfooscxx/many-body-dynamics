@@ -1,5 +1,8 @@
 #include "pauli.h"
 
+#include <symengine/expression.h>
+#include <symengine/functions.h>
+
 #include <bit>
 #include <climits>
 #include <utility>
@@ -12,7 +15,7 @@ scaled_pauli_string make_pauli_string(
     string.v_ ^= temp.v_;
     string.w_ ^= temp.w_;
   }
-  return {.P = string, .coef = string.phase_adjustment().conjugate()};
+  return {.P = string, .coef = SymEngine::conjugate(string.phase_adjustment())};
 }
 
 pauli_string::pauli_string(std::size_t site, pauli_string::pauli_matrix matrix)
@@ -69,18 +72,19 @@ std::vector<int> mask_to_vector(pauli_string::qubit_mask_t sites) {
   return result;
 }
 
-GiNaC::numeric pauli_string::phase_adjustment() const {
-  static const std::array<GiNaC::numeric, 4> phase = {1, GiNaC::I, -1,
-                                                      -GiNaC::I};
+SymEngine::Expression pauli_string::phase_adjustment() const {
+  static const std::array<SymEngine::Expression, 4> phase = {
+      1, SymEngine::Expression(SymEngine::I), -1,
+      -SymEngine::Expression(SymEngine::I)};
   return phase[popcount(v_ & w_) % 4];
 }
 
-[[nodiscard]] GiNaC::numeric pauli_string::polarize(GiNaC::numeric p_x,
-                                                    GiNaC::numeric p_y,
-                                                    GiNaC::numeric p_z) const {
-  GiNaC::numeric result = phase_adjustment();
-  std::array<GiNaC::numeric, 4> substitution = {1, std::move(p_x),
-                                                std::move(p_z), std::move(p_y)};
+[[nodiscard]] SymEngine::Expression pauli_string::polarize(
+    SymEngine::Expression p_x, SymEngine::Expression p_y,
+    SymEngine::Expression p_z) const {
+  SymEngine::Expression result = phase_adjustment();
+  std::array<SymEngine::Expression, 4> substitution = {
+      1, std::move(p_x), std::move(p_z), std::move(p_y)};
   const std::size_t bits = sizeof(qubit_mask_t) * CHAR_BIT;
   for (std::size_t i = 0; i < bits; ++i) {
     const auto matrix_byte =

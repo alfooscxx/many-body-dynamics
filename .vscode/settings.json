@@ -9,6 +9,7 @@
         "exvector",
         "ginac",
         "ncmul",
-        "qubit"
+        "qubit",
+        "symengine"
     ]
 }
