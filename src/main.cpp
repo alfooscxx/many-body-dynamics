@@ -1,8 +1,9 @@
 // main.cpp — CLI tool for Suzuki–Trotter evolution of a quantum observable
+#include <symengine/lambda_double.h>
+
 #include <algorithm>
 #include <cxxopts.hpp>
 #include <iostream>
-#include <numeric>
 #include <ranges>
 #include <sstream>
 #include <string>
@@ -70,10 +71,10 @@ Cli parse_cli(int argc, char** argv) {
   if (vec.size() != 3)
     throw std::invalid_argument("substitution expects x,y,z");
   const double norm2 = vec[0] * vec[0] + vec[1] * vec[1] + vec[2] * vec[2];
-  if (std::abs(norm2 - 1.0) > 1e-6)
+  if (std::abs(norm2 - 1.0) > 1e-6) {
     throw std::invalid_argument("x^2+y^2+z^2 must equal 1");
+  }
   rg::copy(vec, opt.pol.begin());
-
   return opt;
 }
 
@@ -130,18 +131,25 @@ int main(int argc, char** argv) {
 
     const auto& state = calc.show();
 
+    std::vector<SymEngine::LambdaComplexDoubleVisitor> coefficient_visitors(
+        state.size());
+    for (const auto& [index, coef] :
+         rv::values(state) | rv::as_const | rv::enumerate) {
+      coefficient_visitors[index].init({calc.get_tau()}, coef);
+    }
+
     for (double t = 0.0; t <= cfg.t_max + 1e-12; t += cfg.dt) {
-      const SymEngine::Expression tau(t / cfg.trotter_steps);
-      const SymEngine::Expression total = std::accumulate(
-          state.begin(), state.end(), SymEngine::Expression{0},
-          [&](const SymEngine::Expression& acc, const auto& term) {
-            const auto& [P, coef] = term;
-            const auto pol = P.polarize(cfg.pol[0], cfg.pol[1], cfg.pol[2]);
-            return pol == 0 ? acc
-                            : acc + coef.subs({{calc.get_tau(), tau}}) * pol;
-          });
-      std::cout << t << ' ' << static_cast<std::complex<double>>(total).real()
-                << '\n';
+      const double tau(t / cfg.trotter_steps);
+      std::complex<double> total = 0;
+      for (const auto& [index, string] :
+           rv::keys(state) | rv::as_const | rv::enumerate) {
+        const auto pol = static_cast<std::complex<double>>(
+            string.polarize(cfg.pol[0], cfg.pol[1], cfg.pol[2]));
+        if (pol != 0.0) {
+          total += coefficient_visitors[index].call({tau}) * pol;
+        }
+      }
+      std::cout << t << ' ' << total.real() << '\n';
     }
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << '\n';

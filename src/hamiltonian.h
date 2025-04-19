@@ -36,7 +36,6 @@ class hamiltonian {
     for (auto& group : base_strings_groups_) {
       group.do_coloring();
     }
-    std::ranges::reverse(base_strings_groups_);
   }
 
   [[nodiscard]] std::span<group, std::dynamic_extent> groups_view() {

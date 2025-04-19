@@ -1,5 +1,9 @@
 #include "calculator.h"
 
+#include <symengine/expression.h>
+
+#include <ranges>
+
 #include "hamiltonian.h"
 #include "pauli.h"
 
@@ -10,7 +14,7 @@ evolution_calculator::evolution_calculator(
 }
 
 void evolution_calculator::advance(std::size_t count) {
-  static const auto arg_coef = 2 * tau_;
+  static const auto arg_coef = 2 * tau_ * SymEngine::I;
   for (std::size_t iter = 0; iter < count; ++iter) {
     ++n_;
     for (const auto& group : hamiltonian_.groups_view()) {
@@ -37,11 +41,13 @@ void evolution_calculator::advance(std::size_t count) {
             const auto P_phase_adjustment = P.phase_adjustment();
             const auto arg = arg_coef * P_phase_adjustment * P_coef;
             const auto [PA, PA_phase_adjustment] = P * A;
-            new_state_.emplace_back(A, SymEngine::cos(arg) * A_coef);
+            const SymEngine::Expression exp_pos = SymEngine::exp(arg);
+            const SymEngine::Expression exp_neg = SymEngine::exp(-arg);
+            new_state_.emplace_back(A, (exp_pos + exp_neg) / 2 * A_coef);
             new_state_.emplace_back(
                 PA, PA_phase_adjustment *
                         SymEngine::conjugate(P_phase_adjustment) *
-                        SymEngine::I * SymEngine::sin(arg) * A_coef);
+                        (exp_pos - exp_neg) / 2 * A_coef);
           }
           std::ranges::sort(new_state_, {},
                             &decltype(new_state_)::value_type::first);
@@ -53,12 +59,15 @@ void evolution_calculator::advance(std::size_t count) {
           const auto junk = std::ranges::unique(
               new_state_, {}, &decltype(new_state_)::value_type::first);
           new_state_.erase(junk.begin(), junk.end());
-          // const auto removed = std::ranges::remove_if(
-          //     new_state_, [](const auto& coef) { return coef == 0; },
-          //     &decltype(new_state_)::value_type::second);
-          // new_state_.erase(removed.begin(), removed.end());
+          const auto removed = std::ranges::remove_if(
+              new_state_, [](const auto& coef) { return coef == 0; },
+              &decltype(new_state_)::value_type::second);
+          new_state_.erase(removed.begin(), removed.end());
           state_.swap(new_state_);
           new_state_.clear();
+          for (auto& expression : std::views::values(state_)) {
+            expression = SymEngine::expand(expression);
+          }
         }
       }
     }
