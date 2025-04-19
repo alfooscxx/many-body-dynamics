@@ -1,7 +1,9 @@
 #include "calculator.h"
 
+#include <omp.h>
 #include <symengine/expression.h>
 
+#include <parallel/algorithm>
 #include <ranges>
 
 #include "hamiltonian.h"
@@ -49,8 +51,12 @@ void evolution_calculator::advance(std::size_t count) {
                         SymEngine::conjugate(P_phase_adjustment) *
                         (exp_pos - exp_neg) / 2 * A_coef);
           }
-          std::ranges::sort(new_state_, {},
-                            &decltype(new_state_)::value_type::first);
+          __gnu_parallel::sort(new_state_.begin(), new_state_.end(),
+                               [](const auto& lhs, const auto& rhs) {
+                                 return lhs.first < rhs.first;
+                               });
+          // std::ranges::sort(new_state_, {},
+          //                   &decltype(new_state_)::value_type::first);
           for (std::size_t i = new_state_.size() - 1; i > 0; --i) {
             if (new_state_[i].first == new_state_[i - 1].first) {
               new_state_[i - 1].second += new_state_[i].second;
@@ -65,8 +71,11 @@ void evolution_calculator::advance(std::size_t count) {
           new_state_.erase(removed.begin(), removed.end());
           state_.swap(new_state_);
           new_state_.clear();
-          for (auto& expression : std::views::values(state_)) {
-            expression = SymEngine::expand(expression);
+          size_t N = state_.size();
+#pragma omp parallel for schedule(dynamic)
+          for (int i = 0; i < static_cast<int>(N); ++i) {
+            auto& expr = state_[i].second;
+            expr = SymEngine::expand(expr);
           }
         }
       }

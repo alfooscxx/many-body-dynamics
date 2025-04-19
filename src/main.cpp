@@ -1,4 +1,5 @@
 // main.cpp — CLI tool for Suzuki–Trotter evolution of a quantum observable
+#include <omp.h>
 #include <symengine/lambda_double.h>
 
 #include <algorithm>
@@ -133,9 +134,9 @@ int main(int argc, char** argv) {
 
     std::vector<SymEngine::LambdaComplexDoubleVisitor> coefficient_visitors(
         state.size());
-    for (const auto& [index, coef] :
-         rv::values(state) | rv::as_const | rv::enumerate) {
-      coefficient_visitors[index].init({calc.get_tau()}, coef);
+#pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < static_cast<int>(state.size()); ++i) {
+      coefficient_visitors[i].init({calc.get_tau()}, state[i].second);
     }
 
     for (double t = 0.0; t <= cfg.t_max + 1e-12; t += cfg.dt) {

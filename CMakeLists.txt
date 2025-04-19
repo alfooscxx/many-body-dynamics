@@ -4,8 +4,6 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 23)
 endif()
 
-set(CMAKE_CXX_EXTENSIONS OFF)
-
 # Set the project
 project(
   many-body-dynamics
